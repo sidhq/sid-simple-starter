@@ -37,9 +37,16 @@ def add_context(text):
         "text": text
     }).content
 
-def generate_text(prompt):
-    response = langchain.generate(prompt, model="gpt-4")
-    return response.text
+def generate_text(text):
+    context = query_sid(text)
+    prompt_template = "Follow the following instructions on text generation, you are an advanced copy-writing AI system:\n\n {text}\n\n Incorporate the following:\n\n {context}"
+    model = ChatOpenAI()
+    prompt = ChatPromptTemplate.from_template(prompt_template)
+    chain = prompt | model
+    return chain.invoke({
+        "context": context,
+        "text": text
+    }).content
 
 def main():
     choice = input("Do you want to paste existing text or generate new text from scratch? (paste/generate): ")
