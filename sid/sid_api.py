@@ -1,5 +1,4 @@
 from datetime import timedelta, datetime
-
 import requests
 import webbrowser
 from flask import Flask, request
@@ -7,7 +6,8 @@ import configparser
 
 # Read settings
 config = configparser.ConfigParser()
-config.read('settings.ini')
+settings_file = 'sid/settings.ini'
+config.read(settings_file)
 
 # OAuth 2.0 Credentials
 CLIENT_ID = config['ENV']['CLIENT_ID']
@@ -19,8 +19,7 @@ TOKEN_URL = config['ENV']['TOKEN_URL']
 app = Flask(__name__)
 
 # Global variable to store the authorization code
-auth_code = None
-
+_auth_code = None
 
 def run_flask_app():
     app.run(port=5000)
@@ -28,9 +27,9 @@ def run_flask_app():
 
 @app.route('/callback')
 def callback():
-    global auth_code
-    auth_code = request.args.get('code')
-    if auth_code:
+    global _auth_code
+    _auth_code = request.args.get('code')
+    if _auth_code:
         return "Authorization successful! You can close this window."
     else:
         return "Authorization failed!", 400
@@ -42,7 +41,7 @@ def set_tokens(access_token, refresh_token, expires_in):
     config['AUTH']['access_token'] = access_token
     config['AUTH']['refresh_token'] = refresh_token
     config['AUTH']['access_token_expiry_time'] = str(int(access_token_expiry_time.timestamp()))
-    with open('sid/settings.ini', 'w') as configfile:
+    with open(settings_file, 'w') as configfile:
         config.write(configfile)
 
 
@@ -109,7 +108,7 @@ def full_auth_flow():
     webbrowser.open(auth_url)
 
     # Wait for the authorization code to be captured by the Flask app
-    while auth_code is None:
+    while _auth_code is None:
         pass
 
     # Step 3: Exchange the authorization code for an access token and refresh token
@@ -117,7 +116,7 @@ def full_auth_flow():
         'client_id': CLIENT_ID,
         'client_secret': CLIENT_SECRET,
         'redirect_uri': REDIRECT_URI,
-        'code': auth_code,
+        'code': _auth_code,
         'grant_type': 'authorization_code',
     })
     tokens = response.json()
@@ -152,10 +151,3 @@ def query_sid(query, limit=10, context_size=0):
         }
         response = requests.post('https://api.sid.ai/v1/users/me/query', json=data, headers=headers)
         return response.json()
-
-
-if __name__ == "__main__":
-
-    # Query the SID API
-    response = query_sid("Where do I work?")
-    print(response)
