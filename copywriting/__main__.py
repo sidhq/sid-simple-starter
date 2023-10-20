@@ -1,29 +1,45 @@
 import textwrap
 from sid import query_sid
+
+from langchain.prompts import ChatPromptTemplate
+from langchain.chat_models import ChatOpenAI
+
+def text_operation(text, prompt_template):
+    model = ChatOpenAI()
+    prompt = ChatPromptTemplate.from_template(prompt_template)
+    chain = prompt | model
+    return chain.invoke({"text": text}).content
+
 def make_shorter(text):
-    # This is a simple way to shorten text by removing every alternate sentence.
-    sentences = text.split('.')
-    shorter_sentences = [sentences[i] for i in range(len(sentences)) if i % 2 == 0]
-    return '.'.join(shorter_sentences)
+    prompt_template = "Make the following text shorter:\n\n{text}"
+    return text_operation(text, prompt_template)
 
 def make_longer(text):
-    # This is a simple way to lengthen text by repeating every sentence.
-    sentences = text.split('.')
-    longer_sentences = [sentence for sentence in sentences for _ in range(2)]
-    return '.'.join(longer_sentences)
+    prompt_template = "Make the following text longer:\n\n{text}"
+    return text_operation(text, prompt_template)
 
 def fix_spelling_and_grammar(text):
-    # For simplicity, this function doesn't actually fix spelling and grammar.
-    # In a real-world scenario, you might integrate with a service like Grammarly or LanguageTool.
-    return text
+    prompt_template = "Fix spelling and grammar in the following text:\n\n {text}"
+    return text_operation(text, prompt_template)
 
 def improve_writing(text):
-    # This is a placeholder. In a real-world scenario, you might use advanced NLP techniques.
-    return text
+    prompt_template = "Improve the writing of the following text:\n\n {text}"
+    return text_operation(text, prompt_template)
 
 def add_context(text):
-    # This is a simple way to add context by appending a generic sentence.
-    return text + " This is added for context."
+    context = query_sid(text)
+    prompt_template = "Based on what you learn from this:\n\n {context}\n\n Add any relevant context to the following text:\n\n {text}"
+    model = ChatOpenAI()
+    prompt = ChatPromptTemplate.from_template(prompt_template)
+    chain = prompt | model
+    return chain.invoke({
+        "context": context,
+        "text": text
+    }).content
+
+def generate_text(prompt):
+    response = langchain.generate(prompt, model="gpt-4")
+    return response.text
 
 def main():
     choice = input("Do you want to paste existing text or generate new text from scratch? (paste/generate): ")
@@ -31,7 +47,8 @@ def main():
     if choice == "paste":
         text = input("Paste your text: ")
     else:
-        text = ""
+        prompt = input("Enter the prompt to generate text from: ")
+        text = generate_text(prompt)
 
     while True:
         print("\nCurrent Text:\n", textwrap.fill(text, 80))
