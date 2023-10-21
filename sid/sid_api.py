@@ -22,7 +22,7 @@ app = Flask(__name__)
 _auth_code = None
 
 def run_flask_app():
-    app.run(port=5000)
+    app.run(port=8000)
 
 
 @app.route('/callback')
