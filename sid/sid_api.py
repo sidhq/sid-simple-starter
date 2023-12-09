@@ -1,11 +1,10 @@
-import json
+import configparser
+import webbrowser
 from datetime import timedelta, datetime
-from typing import Union
+from typing import Dict, Union
 
 import requests
-import webbrowser
 from flask import Flask, request
-import configparser
 
 # Read settings
 config = configparser.ConfigParser()
@@ -23,6 +22,12 @@ app = Flask(__name__)
 
 # Global variable to store the authorization code
 _auth_code = None
+
+VERBOSE = True
+
+def print_verbose(*args, **kwargs):
+    if VERBOSE:
+        print(*args, **kwargs)
 
 def run_flask_app():
     app.run(port=8000)
@@ -50,30 +55,30 @@ def set_tokens(access_token, refresh_token, expires_in):
 
 def get_access_token():
     """Retrieve the access token from settings.ini. This is only doing basic validation."""
-    print('Retrieving access token...')
+    print_verbose('Retrieving access token...')
     access_token = config['AUTH']['access_token']
     access_token_expiry_time = config['AUTH']['access_token_expiry_time']
     if access_token:
-        print('Access token found in settings.ini')
-        print(f'Current time: {datetime.now().timestamp()}, expiry time: {float(access_token_expiry_time)}.')
+        print_verbose('Access token found in settings.ini')
+        print_verbose(f'Current time: {datetime.now().timestamp()}, expiry time: {float(access_token_expiry_time)}.')
         if access_token_expiry_time and datetime.now().timestamp() < float(access_token_expiry_time):
-            print('Access token is still valid. No need to refresh.')
+            print_verbose('Access token is still valid. No need to refresh.')
             return access_token
         else:
-            print('Access token has expired. Refreshing...')
+            print_verbose('Access token has expired. Refreshing...')
             return refresh_access_token()
     else:
-        print('Access token not found in settings.ini.')
+        print_verbose('Access token not found in settings.ini.')
         return full_auth_flow()
 
 
 def refresh_access_token():
     """Refresh the access token using the refresh token."""
-    print('Refreshing access token...')
+    print_verbose('Refreshing access token...')
     refresh_token = config['AUTH']['refresh_token']
     try:
         if refresh_token:
-            print('Refresh token found in settings.ini')
+            print_verbose('Refresh token found in settings.ini')
             response = requests.post(TOKEN_URL, data={
                 'client_id': CLIENT_ID,
                 'client_secret': CLIENT_SECRET,
@@ -81,19 +86,18 @@ def refresh_access_token():
                 'grant_type': 'refresh_token',
             })
             if response.status_code == 200:
-                print('Refresh successful')
+                print_verbose('Refresh successful')
                 tokens = response.json()
                 set_tokens(tokens['access_token'], refresh_token, tokens['expires_in'])
                 return tokens['access_token']
             else:
                 raise Exception('Refresh failed')
     except Exception as e:
-        print('Refresh failed')
+        print_verbose('Refresh failed')
         return full_auth_flow()
 
-
 def full_auth_flow():
-    print('Initiating full auth flow...')
+    print_verbose('Initiating full auth flow...')
     # Step 1: Start the Flask app in a separate thread
     import threading
 
@@ -129,52 +133,39 @@ def full_auth_flow():
 
     return tokens['access_token']
 
+def make_authenticated_request(url: str, data: Dict[str, Union[str, int]], method: str = 'post') -> Dict:
+    def authenticated_request(url, headers, data):
+        if method == 'post':
+            return requests.post(url, json=data, headers=headers)
+        else:
+            raise Exception('Method not supported')
 
-def query_sid(query: str, limit: int = 10, context_size: int = 0, query_processing: Union['standard', 'extended'] = 'standard'):
-    """Query the SID API."""
-    """for more information, checkout this: https://docs.sid.ai/api-reference/endpoint/query"""
     access_token = get_access_token()
     headers = {
         'Authorization': f'Bearer {access_token}',
         'Content-Type': 'application/json'  # Specify that we're sending JSON data
     }
+    response = authenticated_request(url, headers, data)
+    if response.status_code != 200:
+        access_token = refresh_access_token()
+        headers['Authorization'] = f'Bearer {access_token}'
+        response = authenticated_request(url, headers, data)
+    return response.json()
+
+def query_sid(query: str, limit: int = 10, context_size: int = 0,
+              query_processing: Union['standard', 'extended'] = 'standard'):
+    """Query the SID API."""
     data = {
         "query": query,
         "limit": limit,
         "context_size": context_size,
         "query_processing": query_processing
     }
-    response = requests.post('https://api.sid.ai/v1/users/me/query', json=data, headers=headers)
-    if response.status_code == 200:
-        return response.json()
-    else:
-        access_token = refresh_access_token()
-        headers = {
-            'Authorization': f'Bearer {access_token}',
-            'Content-Type': 'application/json'  # Specify that we're sending JSON data
-        }
-        response = requests.post('https://api.sid.ai/v1/users/me/query', json=data, headers=headers)
-        return response.json()
+    return make_authenticated_request('https://api.sid.ai/v1/users/me/query', data)
 
 def example_sid(usage: Union['question', 'task'] = 'question'):
     """Example endpoint."""
-    """for more information, checkout this: https://docs.sid.ai/api-reference/endpoint/example"""
-    access_token = get_access_token()
-    headers = {
-        'Authorization': f'Bearer {access_token}',
-        'Content-Type': 'application/json'  # Specify that we're sending JSON data
-    }
     data = {
         "usage": usage
     }
-    response = requests.post('https://api.sid.ai/v1/users/me/example', json=data, headers=headers)
-    if response.status_code == 200:
-        return response.json()
-    else:
-        access_token = refresh_access_token()
-        headers = {
-            'Authorization': f'Bearer {access_token}',
-            'Content-Type': 'application/json'  # Specify that we're sending JSON data
-        }
-        response = requests.post('https://api.sid.ai/v1/users/me/example', json=data, headers=headers)
-        return response.json()
+    return make_authenticated_request('https://api.sid.ai/v1/users/me/example', data)
