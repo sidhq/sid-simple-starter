@@ -1,4 +1,7 @@
+import json
 from datetime import timedelta, datetime
+from typing import Union
+
 import requests
 import webbrowser
 from flask import Flask, request
@@ -127,9 +130,9 @@ def full_auth_flow():
     return tokens['access_token']
 
 
-def query_sid(query, limit=10, context_size=0):
+def query_sid(query: str, limit: int = 10, context_size: int = 0, query_processing: Union['standard', 'extended'] = 'standard'):
     """Query the SID API."""
-    # Get the access token
+    """for more information, checkout this: https://docs.sid.ai/api-reference/endpoint/query"""
     access_token = get_access_token()
     headers = {
         'Authorization': f'Bearer {access_token}',
@@ -138,7 +141,8 @@ def query_sid(query, limit=10, context_size=0):
     data = {
         "query": query,
         "limit": limit,
-        "context_size": context_size
+        "context_size": context_size,
+        "query_processing": query_processing
     }
     response = requests.post('https://api.sid.ai/v1/users/me/query', json=data, headers=headers)
     if response.status_code == 200:
@@ -150,4 +154,27 @@ def query_sid(query, limit=10, context_size=0):
             'Content-Type': 'application/json'  # Specify that we're sending JSON data
         }
         response = requests.post('https://api.sid.ai/v1/users/me/query', json=data, headers=headers)
+        return response.json()
+
+def example_sid(usage: Union['question', 'task'] = 'question'):
+    """Example endpoint."""
+    """for more information, checkout this: https://docs.sid.ai/api-reference/endpoint/example"""
+    access_token = get_access_token()
+    headers = {
+        'Authorization': f'Bearer {access_token}',
+        'Content-Type': 'application/json'  # Specify that we're sending JSON data
+    }
+    data = {
+        "usage": usage
+    }
+    response = requests.post('https://api.sid.ai/v1/users/me/example', json=data, headers=headers)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        access_token = refresh_access_token()
+        headers = {
+            'Authorization': f'Bearer {access_token}',
+            'Content-Type': 'application/json'  # Specify that we're sending JSON data
+        }
+        response = requests.post('https://api.sid.ai/v1/users/me/example', json=data, headers=headers)
         return response.json()
