@@ -23,7 +23,7 @@ app = Flask(__name__)
 # Global variable to store the authorization code
 _auth_code = None
 
-VERBOSE = True
+VERBOSE = False
 
 def print_verbose(*args, **kwargs):
     if VERBOSE:
